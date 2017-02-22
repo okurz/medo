@@ -30,6 +30,7 @@ setup(
         "configargparse",
         "future",
         "certifi",
+        "requests",
     ],
     test_require=[
         "pytest-mock",
