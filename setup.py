@@ -27,6 +27,7 @@ setup(
     name="medo",
     version="{ver}".format(ver=version_git),
     install_requires=[
+        "futures",
         "configargparse",
         "future",
         "certifi",

@@ -5,8 +5,10 @@
 from __future__ import absolute_import
 from future.standard_library import install_aliases  # isort:skip to keep 'install_aliases()'
 install_aliases()
+from future.utils import iteritems
 
 import certifi
+import concurrent.futures
 import configargparse
 import email
 import email.header
@@ -65,9 +67,31 @@ def get_json(name, *args, **kwargs):
     return r.json()
 
 
+def get_todo_txt(args):
+    if not which('t'):
+        return []
+    t_ls_out = subprocess.check_output(['t', 'ls']).splitlines()
+    return ['\n## t (%s tasks)' % len(t_ls_out)] + [decode(line, 'utf-8') for line in t_ls_out][:args.max_lines]
+
+
+def github_notifications(args):
+    if not args.github_token:
+        log.debug('not github_token configured, ignoring')
+        return []
+    github_auth = (args.github_username, args.github_token)
+    r = get_json('github', 'https://api.github.com/notifications', auth=github_auth, headers={'Accept': 'application/vnd.github.v3+json'})
+    gh = r[:args.max_lines]
+    gh_out = sorted(['%s %s' % (i['subject']['url'].replace('https://api.github.com/repos', 'https://github.com'), i['subject']['title'],) for i in gh])
+    return ['\n## github'] + gh_out
+
+
 def gitlab_notifications(args):
     def get(route, base='api/v3/'):
         return get_json('gitlab', urllib.parse.urljoin(args.gitlab_host, base + route), headers={'PRIVATE-TOKEN': args.gitlab_token}, verify=certifi.where())
+
+    if not args.gitlab_host:
+        log.debug('no gitlab_host configured, ignoring')
+        return []
 
     todos = get('todos')
     gl = ['\n## gitlab %s' % args.gitlab_host] + todos
@@ -81,6 +105,10 @@ def gitlab_notifications(args):
 
 
 def redmine_notifications(args):
+    if not args.redmine_host:
+        log.debug('no redmine_host configured, ignoring')
+        return []
+
     url = urllib.parse.urljoin(args.redmine_host, 'issues.json?limit=20&assigned_to_id=me')
     r = get_json('progress', url, auth=(args.redmine_token, ''))
 
@@ -97,6 +125,10 @@ def bugzilla_notifications(args):
 
     Reference: https://www.bugzilla.org/docs/4.4/en/html/api/Bugzilla/WebService/Bug.html#search
     """
+    if not args.bugzilla_host:
+        log.debug('no bugzilla_host configured, ignoring')
+        return []
+
     def get(method, params):
         r_params = {'method': method, 'params': json.dumps([params])}
         return get_json('bugzilla', urllib.parse.urljoin(args.bugzilla_host, 'jsonrpc.cgi'), auth=(args.bugzilla_user, args.bugzilla_password), params=r_params)
@@ -113,6 +145,9 @@ def bugzilla_notifications(args):
 
 def obs(args):
     """OBS TODOs, pending reviews, submit requests."""
+    if not which('osc'):
+        log.debug('no osc found, ignoring')
+        return []
     log.debug('querying OBS TODOs')
     osc_my = subprocess.check_output(['osc', 'my'])
     osc_out = osc_my.splitlines()[:args.max_lines]
@@ -124,6 +159,9 @@ def obs(args):
 
 
 def email_todos(args):
+    if not args.imap_host:
+        log.debug('no imap_host configured, ignoring')
+        return []
     imap = imaplib.IMAP4_SSL(args.imap_host)
     imap.login(args.imap_username, args.imap_password)
     imap.select('INBOX/todo')
@@ -137,48 +175,37 @@ def email_todos(args):
 
 
 class MeDo(object):
+    """Main object constructing and calling retrieval objects."""
     def __init__(self, args):
         """Construct object and save forwarded arguments."""
         self.args = args
+        self.dispatch = {
+            'todo_txt': get_todo_txt,
+            'redmine': redmine_notifications,
+            'email': email_todos,
+            'github': github_notifications,
+            'gitlab': gitlab_notifications,
+            'bugzilla': bugzilla_notifications,
+            'obs': obs,
+        }
 
     def ls(self):
-        out = []
+        """Execute reading of individual requests."""
         # give an overview of different todo lists
-        # * personal todo list
-        if which('t'):
-            t_ls_out = subprocess.check_output(['t', 'ls']).splitlines()
-            out += ['\n## t (%s tasks)' % len(t_ls_out)] + [decode(line, 'utf-8') for line in t_ls_out][:self.args.max_lines]
-        # * progress tasks
-        if self.args.redmine_host:
-            out += redmine_notifications(self.args)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            futures = {executor.submit(v, self.args): k for k, v in iteritems(self.dispatch)}
+            try:
+                for future in concurrent.futures.as_completed(futures, timeout=int(self.args.timeout)):
+                    log.debug('result received for %s' % futures[future])
+                    out_single = future.result()
+                    print('\n'.join(out_single))
+            except concurrent.futures.TimeoutError as e:
+                log.info("requests could not complete in time: %s" % e)
         # * failing, unreviewed tests of SLE on osd
         # * failing, unreviewed tests on o3
-        # * unread emails in inbox / todo emails
-        if self.args.imap_host:
-            out += email_todos(self.args)
-        # * github notifications
-        if self.args.github_token:
-            github_auth = (self.args.github_username, self.args.github_token)
-            r = get_json('github', 'https://api.github.com/notifications', auth=github_auth, headers={'Accept': 'application/vnd.github.v3+json'})
-            gh = r[:self.args.max_lines]
-            gh_out = sorted(['%s %s' % (i['subject']['url'].replace('https://api.github.com/repos', 'https://github.com'), i['subject']['title'],) for i in gh])
-            out += ['\n## github'] + gh_out
-
-        # * gitlab notifications
-        if self.args.gitlab_host:
-            out += gitlab_notifications(self.args)
-
-        # * bugzilla tickets assigned to me, needinfo, etc.  * obs/ibs 'my'
-        if self.args.bugzilla_host:
-            out += bugzilla_notifications(self.args)
-
-        # * submit requests in OBS/IBS
-        if which('osc'):
-            out += obs(self.args)
-
-        print('\n'.join(out))
 
     def ls_waitfor(self):
+        """Execute reading of requests for @waitfor."""
         # * my own open github PRs
         # ...
         pass
@@ -188,6 +215,7 @@ def parse_args():
     parser = configargparse.ArgumentParser(formatter_class=configargparse.ArgumentDefaultsHelpFormatter, default_config_files=[DEFAULTS['CONFIG_PATH']])
     parser.add('-v', '--verbose', help="Increase verbosity level, specify multiple times to increase verbosity", action='count', default=1)
     parser.add('--max-lines', type=int, help="""Maximum number of lines for each output component""", default=DEFAULTS['MAX_LINES'])
+    parser.add('-t', '--timeout', help="Timeout for overall processing. Returns what was retrieved until the timeout is hit.", default=3)
     parser.add('--github-username', help="Username for github access")
     parser.add('--github-token', help="OAuth2 token for github access")
     parser.add('--gitlab-host', help="gitlab server instance to query")
@@ -226,6 +254,7 @@ def main():
     args = parse_args()
     medo = MeDo(args)
     medo.ls()
+
 
 if __name__ == '__main__':
     main()
