@@ -206,6 +206,11 @@ class MeDo(object):
                     print('\n'.join(out_single))
             except concurrent.futures.TimeoutError as e:
                 log.info("requests could not complete in time: %s" % e)
+                # Exiting hard with no cleanup as our access to different
+                # services should be read-only anyway. If we do no stop
+                # hard we might wait for a request which is not
+                # terminating itself within an appropriate time.
+                os._exit(1)
         # * failing, unreviewed tests of SLE on osd
         # * failing, unreviewed tests on o3
 
