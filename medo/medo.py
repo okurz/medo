@@ -52,6 +52,11 @@ log = logging.getLogger(sys.argv[0] if __name__ == "__main__" else __name__)
 
 
 def which(cmd):
+    """Wrapper for 'which' command with fallback if shutil does not have that yet.
+
+    >>> which('true') != 1
+    True
+    """
     try:
         return shutil.which(cmd)
     except AttributeError:

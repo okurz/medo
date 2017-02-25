@@ -6,6 +6,7 @@ isort:skip_file
 
 import pytest
 import sys
+import subprocess
 
 from medo import medo  # SUT
 
@@ -18,4 +19,6 @@ def test_help():
 
 def test_default():
     sys.argv[1:] = 'ls'
-    medo.main()
+    with pytest.raises(subprocess.CalledProcessError) as e:
+        medo.main()
+    assert 'non-zero exit status' in str(e)
