@@ -27,8 +27,8 @@ TODOs and ideas are tracked in the file `TODO` as well as github issues.
 * Every commit is checked by [Travis CI](https://travis-ci.org/travis) as soon as
   you create a pull request but you *should* run `tox` locally,
 
-* Make sure to keep the 100% test coverage, e.g. by adding test reference data
-  for new scenarios. TDD is advised :-)
+* It would be nice to keep the test coverage or increase it, e.g. by adding
+  test reference data for new scenarios. TDD is advised :-)
 
 * For git commit messages use the rules stated on
   [How to Write a Git Commit Message](http://chris.beams.io/posts/git-commit/) as
