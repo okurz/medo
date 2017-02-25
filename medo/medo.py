@@ -211,19 +211,12 @@ class MeDo(object):
                 # hard we might wait for a request which is not
                 # terminating itself within an appropriate time.
                 os._exit(1)
-        # * failing, unreviewed tests of SLE on osd
-        # * failing, unreviewed tests on o3
-
-    def ls_waitfor(self):
-        """Execute reading of requests for @waitfor."""
-        # * my own open github PRs
-        # ...
-        pass
 
 
 def parse_args():
-    parser = configargparse.ArgumentParser(formatter_class=configargparse.ArgumentDefaultsHelpFormatter, default_config_files=[DEFAULTS['CONFIG_PATH']])
+    parser = configargparse.ArgParser(formatter_class=configargparse.ArgumentDefaultsHelpFormatter, default_config_files=[DEFAULTS['CONFIG_PATH']])
     parser.add('-v', '--verbose', help="Increase verbosity level, specify multiple times to increase verbosity", action='count', default=1)
+    parser.add('-c', '--config', is_config_file=True, help="config file path")
     parser.add('--max-lines', type=int, help="""Maximum number of lines for each output component""", default=DEFAULTS['MAX_LINES'])
     parser.add('-t', '--timeout', help="Timeout for overall processing. Returns what was retrieved until the timeout is hit.", default=3)
     parser.add('--github-username', help="Username for github access")
@@ -243,8 +236,7 @@ def parse_args():
     parser.add('cmd',
                help="""The command to execute based on what todo.txt supports.
                The command is also passed to todo.txt as an underlying instance.""")
-    parser.add('args', nargs=configargparse.REMAINDER, help="""All additional arguments are forwarded to any plugins or backends.""")
-    args = parser.parse()
+    args = parser.parse_args()
     verbose_to_log = {
         0: logging.CRITICAL,
         1: logging.ERROR,
