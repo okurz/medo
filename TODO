@@ -1,0 +1,12 @@
+* failing, unreviewed tests of SLE on osd
+* failing, unreviewed tests on o3
+
+* a command for 'waitfor', e.g.
+
+```
+    def ls_waitfor(self):
+        """Execute reading of requests for @waitfor."""
+        # * my own open github PRs
+        # ...
+        pass
+```
