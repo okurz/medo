@@ -27,11 +27,11 @@ setup(
     name="medo",
     version="{ver}".format(ver=version_git),
     install_requires=[
-        "futures",
-        "configargparse",
-        "future",
-        "certifi",
-        "requests",
+        'futures;python_version<"3.4"',
+        'configargparse',
+        'future',
+        'certifi',
+        'requests',
     ],
     test_require=[
         "pytest-mock",
