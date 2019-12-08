@@ -1,4 +1,4 @@
-# medo
+# medo [![Build Status](https://travis-ci.org/okurz/medo.svg?branch=master)](https://travis-ci.org/okurz/medo)
 
 A meta-TODO script acting as a TODO list but interacting with multiple backends.
 
