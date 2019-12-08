@@ -52,7 +52,7 @@ log = logging.getLogger(sys.argv[0] if __name__ == "__main__" else __name__)
 
 
 def which(cmd):
-    """Wrapper for 'which' command with fallback if shutil does not have that yet.
+    """Provide backward compatible functionality for 'which' command with fallback if shutil does not have it yet.
 
     >>> which('true') != 1
     True
