@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=61.0.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+line-length = 160
+target-version = "py38"
+
+[tool.ruff.lint]
+# Enable Pyflakes (F), Pycodestyle (E, W), and Isort (I)
+select = ["F", "E", "W", "I"]
+# E402 is for module level import not at top of file
+# E501 is for line length (already handled by 160)
+ignore = ["E402"]
+
+[tool.ty]
+# Configure options for ty if any, or leave it to use default type checking.

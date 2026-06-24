@@ -8,12 +8,6 @@ from setuptools import setup
 # Also, when git is not available (PyPi package), use stored version.py.
 version_py = os.path.join(os.path.dirname(__file__), 'version.py')
 
-# python2 backwards craft
-try:
-    FileNotFoundError
-except NameError:
-    FileNotFoundError = IOError
-
 try:
     # This will not generate PEP440 compliant version strings for any commit
     # that is not on the tag itself. setuptools/dist will give a warning.
@@ -33,9 +27,7 @@ setup(
     name="medo",
     version="{ver}".format(ver=version_git),
     install_requires=[
-        'futures;python_version<"3.4"',
         'configargparse',
-        'future',
         'certifi',
         'requests',
     ],
@@ -50,6 +42,7 @@ setup(
     url="https://github.com/okurz/medo",
     packages=['medo'],
     py_modules=['version'],
+    python_requires=">=3.8",
     long_description=open(os.path.join(os.path.dirname(__file__), 'README.md')).read(),
     classifiers=[
         'Development Status :: 5 - Production/Stable',
