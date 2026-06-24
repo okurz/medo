@@ -1,11 +1,4 @@
-#!/usr/bin/env python
-
-# Python 2 and 3: easiest option
-# see http://python-future.org/compatible_idioms.html
-from __future__ import absolute_import
-from future.standard_library import install_aliases  # isort:skip to keep 'install_aliases()'
-install_aliases()
-from future.utils import iteritems
+#!/usr/bin/env python3
 
 import certifi
 import concurrent.futures
@@ -20,8 +13,7 @@ import requests
 import shutil
 import subprocess
 import sys
-import urllib
-from codecs import decode
+import urllib.parse
 
 
 DEFAULTS = {
@@ -51,20 +43,6 @@ logging.basicConfig()
 log = logging.getLogger(sys.argv[0] if __name__ == "__main__" else __name__)
 
 
-def which(cmd):
-    """Provide backward compatible functionality for 'which' command with fallback if shutil does not have it yet.
-
-    >>> which('true') != 1
-    True
-    """
-    try:
-        return shutil.which(cmd)
-    except AttributeError:
-        log.info('which method not (yet) available in shutil, reverting to workaround')
-        x = subprocess.call(['which', cmd])
-        return x == 0
-
-
 def get_json(name, *args, **kwargs):
     """Retrieve JSON from a (REST) API server after checking correct response."""
     r = requests.get(*args, **kwargs)
@@ -73,10 +51,10 @@ def get_json(name, *args, **kwargs):
 
 
 def get_todo_txt(args):
-    if not which('t'):
+    if not shutil.which('t'):
         return []
     t_ls_out = subprocess.check_output(['t', 'ls']).splitlines()
-    return ['\n## t (%s tasks)' % len(t_ls_out)] + [decode(line, 'utf-8') for line in t_ls_out][:args.max_lines]
+    return ['\n## t (%s tasks)' % len(t_ls_out)] + [line.decode('utf-8') for line in t_ls_out][:args.max_lines]
 
 
 def github_notifications(args):
@@ -150,7 +128,7 @@ def bugzilla_notifications(args):
 
 def obs(args):
     """OBS TODOs, pending reviews, submit requests."""
-    if not which('osc'):
+    if not shutil.which('osc'):
         log.debug('no osc found, ignoring')
         return []
     log.debug('querying OBS TODOs')
@@ -173,13 +151,13 @@ def email_todos(args):
     status, messages = imap.search(None, 'ALL')
     assert status == 'OK'
     msgs = [imap.fetch(i, '(BODY.PEEK[HEADER])') for i in messages[0].split()]
-    emails = [email.message_from_string(decode(e[1][0][1], 'utf-8')) for e in msgs]
+    emails = [email.message_from_bytes(e[1][0][1]) for e in msgs]
     mail_out = [' '.join([e['From'], e['Date'], e['Subject']]) for e in emails]
     email_str = ['\n## email TODOs (%s)' % len(mail_out)] + mail_out[:args.max_lines]
     return email_str
 
 
-class MeDo(object):
+class MeDo:
     """Main object constructing and calling retrieval objects."""
     def __init__(self, args):
         """Construct object and save forwarded arguments."""
@@ -198,7 +176,7 @@ class MeDo(object):
         """Execute reading of individual requests."""
         # give an overview of different todo lists
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            futures = {executor.submit(v, self.args): k for k, v in iteritems(self.dispatch)}
+            futures = {executor.submit(v, self.args): k for k, v in self.dispatch.items()}
             try:
                 for future in concurrent.futures.as_completed(futures, timeout=int(self.args.timeout)):
                     log.debug('result received for %s' % futures[future])
