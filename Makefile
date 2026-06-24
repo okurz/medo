@@ -53,7 +53,7 @@ check-code-health: ## Find dead code (vulture)
 
 .PHONY: check-types-ty
 check-types-ty: ## Run ty type checker
-	ty check
+	ty check medo
 
 .PHONY: check-types
 check-types: check-types-ty
