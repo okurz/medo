@@ -364,13 +364,15 @@ def parse_args() -> Any:
         ctx = click_command.make_context("medo", sys.argv[1:])
         args = ArgsNamespace(**ctx.params)
     except BaseException as e:
+        class_name = type(e).__name__
+        if hasattr(e, "exit_code") and "Exit" not in class_name:
+            click.echo(click_command.get_help(click.Context(click_command)), err=True)  # type: ignore
+            click.echo(f"\nError: {e}", err=True)
+            sys.exit(getattr(e, "exit_code"))
         if hasattr(e, "exit_code"):
             sys.exit(getattr(e, "exit_code"))
-        if "Exit" in type(e).__name__:
+        if "Exit" in class_name:
             sys.exit(0)
-        if isinstance(e, click.ClickException):
-            click.echo(f"Error: {e}", err=True)
-            sys.exit(e.exit_code)
         raise
 
     verbose_to_log = {
