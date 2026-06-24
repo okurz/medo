@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import concurrent.futures
+import configparser
 import email
 import email.header
 import imaplib
@@ -11,11 +12,13 @@ import shutil
 import subprocess
 import sys
 import urllib.parse
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
 import certifi
-import configargparse
+import click
 import requests
+import typer
+from typer.main import get_command
 
 DEFAULTS = {
     "MAX_LINES": 20,
@@ -209,38 +212,177 @@ class MeDo:
                 os._exit(1)
 
 
+def load_config(config_path: str) -> Dict[str, Any]:
+    config = configparser.ConfigParser()
+    if os.path.exists(config_path):
+        config.read(config_path)
+    defaults = {}
+    for section in config.sections():
+        for key, value in config.items(section):
+            defaults[key.replace("-", "_")] = value
+    return defaults
+
+
+def get_config_path_from_argv() -> str:
+    for i, arg in enumerate(sys.argv):
+        if arg in ("-c", "--config"):
+            if i + 1 < len(sys.argv):
+                return sys.argv[i + 1]
+    return str(DEFAULTS["CONFIG_PATH"])
+
+
+config_path = get_config_path_from_argv()
+config_defaults = load_config(config_path)
+
+app = typer.Typer(add_completion=False)
+
+
+@app.command()
+def main_command(
+    cmd: str = typer.Argument(
+        ...,
+        help="The command to execute based on what todo.txt supports. The command is also passed to todo.txt as an underlying instance.",
+    ),
+    verbose: int = typer.Option(
+        1,
+        "-v",
+        "--verbose",
+        help="Increase verbosity level, specify multiple times to increase verbosity",
+    ),
+    config: Optional[str] = typer.Option(
+        None,
+        "-c",
+        "--config",
+        help="config file path",
+    ),
+    max_lines: int = typer.Option(
+        int(config_defaults.get("max_lines", DEFAULTS["MAX_LINES"])),
+        "--max-lines",
+        help="Maximum number of lines for each output component",
+    ),
+    timeout: float = typer.Option(
+        float(config_defaults.get("timeout", 3.0)),
+        "-t",
+        "--timeout",
+        help="Timeout for overall processing. Returns what was retrieved until the timeout is hit.",
+    ),
+    github_username: Optional[str] = typer.Option(
+        config_defaults.get("github_username"),
+        "--github-username",
+        help="Username for github access",
+    ),
+    github_token: Optional[str] = typer.Option(
+        config_defaults.get("github_token"),
+        "--github-token",
+        help="OAuth2 token for github access",
+    ),
+    gitlab_host: Optional[str] = typer.Option(
+        config_defaults.get("gitlab_host"),
+        "--gitlab-host",
+        help="gitlab server instance to query",
+    ),
+    gitlab_token: Optional[str] = typer.Option(
+        config_defaults.get("gitlab_token"),
+        "--gitlab-token",
+        help="private token for API access (generate on your gitlab profile, Settings -> Access Tokens)",
+    ),
+    gitlab_merge_requests1: Optional[str] = typer.Option(
+        config_defaults.get("gitlab_merge_requests1"),
+        "--gitlab-merge-requests1",
+        help="gitlab project for which open merge requests should be listed",
+    ),
+    bugzilla_host: Optional[str] = typer.Option(
+        config_defaults.get("bugzilla_host"),
+        "--bugzilla-host",
+        help="bugzilla server instance to query",
+    ),
+    bugzilla_user: Optional[str] = typer.Option(
+        config_defaults.get("bugzilla_user"),
+        "--bugzilla-user",
+        help="username on bugzilla instance used for authentication",
+    ),
+    bugzilla_password: Optional[str] = typer.Option(
+        config_defaults.get("bugzilla_password"),
+        "--bugzilla-password",
+        help="password on bugzilla instance used for authentication",
+    ),
+    bugzilla_account: Optional[str] = typer.Option(
+        config_defaults.get("bugzilla_account"),
+        "--bugzilla-account",
+        help="account name on bugzilla instance for identification, e.g. your email address",
+    ),
+    redmine_host: Optional[str] = typer.Option(
+        config_defaults.get("redmine_host"),
+        "--redmine-host",
+        help="redmine server instance to query",
+    ),
+    redmine_token: Optional[str] = typer.Option(
+        config_defaults.get("redmine_token"),
+        "--redmine-token",
+        help="private token for redmine API access",
+    ),
+    imap_host: Optional[str] = typer.Option(
+        config_defaults.get("imap_host"),
+        "--imap-host",
+        help="IMAP email server to read TODO messages from",
+    ),
+    imap_username: Optional[str] = typer.Option(
+        config_defaults.get("imap_username"),
+        "--imap-username",
+        help="username for IMAP email server",
+    ),
+    imap_password: Optional[str] = typer.Option(
+        config_defaults.get("imap_password"),
+        "--imap-password",
+        help="password for IMAP email server",
+    ),
+) -> None:
+    """
+    medo: A meta-todo command-line application.
+
+    Retrieves and lists todo items from various sources such as todo.txt,
+    github, gitlab, bugzilla, redmine, email, and OBS.
+    """
+    _ = (cmd, verbose, config, max_lines, timeout)
+    _ = (github_username, github_token, gitlab_host, gitlab_token)
+    _ = (gitlab_merge_requests1, bugzilla_host, bugzilla_user, bugzilla_password)
+    _ = (bugzilla_account, redmine_host, redmine_token)
+    _ = (imap_host, imap_username, imap_password)
+
+
+class ArgsNamespace:
+    def __init__(self, **kwargs: Any) -> None:
+        self.__dict__.update(kwargs)
+
+    def __getattr__(self, name: str) -> Any:
+        return self.__dict__.get(name)
+
+
 def parse_args() -> Any:
-    parser = configargparse.ArgParser(formatter_class=configargparse.ArgumentDefaultsHelpFormatter, default_config_files=[DEFAULTS["CONFIG_PATH"]])
-    parser.add_argument("-v", "--verbose", help="Increase verbosity level, specify multiple times to increase verbosity", action="count", default=1)
-    parser.add_argument("-c", "--config", is_config_file=True, help="config file path")
-    parser.add_argument("--max-lines", type=int, help="""Maximum number of lines for each output component""", default=DEFAULTS["MAX_LINES"])
-    parser.add_argument("-t", "--timeout", help="Timeout for overall processing. Returns what was retrieved until the timeout is hit.", default=3)
-    parser.add_argument("--github-username", help="Username for github access")
-    parser.add_argument("--github-token", help="OAuth2 token for github access")
-    parser.add_argument("--gitlab-host", help="gitlab server instance to query")
-    parser.add_argument("--gitlab-token", help="private token for API access (generate on your gitlab profile, Settings -> Access Tokens)")
-    parser.add_argument("--gitlab-merge-requests1", help="gitlab project for which open merge requests should be listed")
-    parser.add_argument("--bugzilla-host", help="bugzilla server instance to query")
-    parser.add_argument("--bugzilla-user", help="username on bugzilla instance used for authentication")
-    parser.add_argument("--bugzilla-password", help="password on bugzilla instance used for authentication")
-    parser.add_argument("--bugzilla-account", help="account name on bugzilla instance for identification, e.g. your email address")
-    parser.add_argument("--redmine-host", help="redmine server instance to query")
-    parser.add_argument("--redmine-token", help="private token for redmine API access")
-    parser.add_argument("--imap-host", help="IMAP email server to read TODO messages from")
-    parser.add_argument("--imap-username", help="username for IMAP email server")
-    parser.add_argument("--imap-password", help="password for IMAP email server")
-    parser.add_argument(
-        "cmd",
-        help="""The command to execute based on what todo.txt supports.
-               The command is also passed to todo.txt as an underlying instance.""",
-    )
-    args = parser.parse_args()
-    verbose_to_log = {0: logging.CRITICAL, 1: logging.ERROR, 2: logging.WARN, 3: logging.INFO, 4: logging.DEBUG}
-    logging_level = logging.DEBUG if args.verbose > 4 else verbose_to_log[args.verbose]
+    click_command = get_command(app)
+    try:
+        ctx = click_command.make_context("medo", sys.argv[1:])
+        args = ArgsNamespace(**ctx.params)
+    except BaseException as e:
+        if hasattr(e, "exit_code"):
+            sys.exit(getattr(e, "exit_code"))
+        if "Exit" in type(e).__name__:
+            sys.exit(0)
+        if isinstance(e, click.ClickException):
+            click.echo(f"Error: {e}", err=True)
+            sys.exit(e.exit_code)
+        raise
+
+    verbose_to_log = {
+        0: logging.CRITICAL,
+        1: logging.ERROR,
+        2: logging.WARN,
+        3: logging.INFO,
+        4: logging.DEBUG,
+    }
+    logging_level = logging.DEBUG if args.verbose > 4 else verbose_to_log.get(args.verbose, logging.DEBUG)
     log.setLevel(logging_level)
-    log.debug("args: %s" % args)
-    log.debug(parser.format_help())
-    log.debug(parser.format_values())
+    log.debug("args: %s" % args.__dict__)
     return args
 
 

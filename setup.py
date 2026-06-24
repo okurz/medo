@@ -31,7 +31,8 @@ setup(
     name="medo",
     version="{ver}".format(ver=version_git),
     install_requires=[
-        "configargparse",
+        "typer",
+        "click",
         "certifi",
         "requests",
     ],

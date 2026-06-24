@@ -13,7 +13,7 @@ from medo import medo  # SUT
 
 
 def test_help():
-    sys.argv += "--help".split()
+    sys.argv[1:] = ["--help"]
     with pytest.raises(SystemExit):
         medo.main()
 
