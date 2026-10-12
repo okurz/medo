@@ -157,7 +157,7 @@ def obs(args: Any) -> List[str]:
     osc = ["\n## OBS TODOs"] + osc_out
     osc_my_rq = subprocess.check_output(["osc", "my", "rq"])
     osc_out_rq = [line.decode("utf-8") for line in osc_my_rq.splitlines()][: args.max_lines]
-    osc = ["\n### OBS requests"] + osc_out_rq
+    osc += ["\n### OBS requests"] + osc_out_rq
     return osc
 
 

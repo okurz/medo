@@ -94,3 +94,29 @@ def test_bugzilla_notifications(mocker, host, response, expected_len):
     else:
         assert len(res) == expected_len
         assert "https://bz.example.com/1 P1 P1 S1 NEW Bug 1" in res[1]
+
+
+@pytest.mark.parametrize(
+    "osc_found,expected_headers",
+    [
+        (False, []),
+        (True, ["\n## OBS TODOs", "\n### OBS requests"]),
+    ],
+    ids=[
+        "empty list when osc executable is not found",
+        "both todos and requests sections included when osc is available",
+    ],
+)
+def test_obs_sections(mocker, osc_found, expected_headers):
+    args = medo.ArgsNamespace(max_lines=5)
+    mocker.patch("shutil.which", return_value="/usr/bin/osc" if osc_found else None)
+    if osc_found:
+        mocker.patch(
+            "subprocess.check_output",
+            side_effect=[b"todo line 1\n", b"request line 1\n"],
+        )
+    res = medo.obs(args)
+    for header in expected_headers:
+        assert header in res
+    if not osc_found:
+        assert res == []
