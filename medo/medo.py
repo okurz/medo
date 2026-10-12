@@ -289,6 +289,7 @@ def main_command(
         config_defaults.get("github_token"),
         "--github-token",
         help="OAuth2 token for github access",
+        show_default=False,
     ),
     gitlab_host: Optional[str] = typer.Option(
         config_defaults.get("gitlab_host"),
@@ -299,6 +300,7 @@ def main_command(
         config_defaults.get("gitlab_token"),
         "--gitlab-token",
         help="private token for API access (generate on your gitlab profile, Settings -> Access Tokens)",
+        show_default=False,
     ),
     gitlab_merge_requests1: Optional[str] = typer.Option(
         config_defaults.get("gitlab_merge_requests1"),
@@ -319,6 +321,7 @@ def main_command(
         config_defaults.get("bugzilla_password"),
         "--bugzilla-password",
         help="password on bugzilla instance used for authentication",
+        show_default=False,
     ),
     bugzilla_account: Optional[str] = typer.Option(
         config_defaults.get("bugzilla_account"),
@@ -334,6 +337,7 @@ def main_command(
         config_defaults.get("redmine_token"),
         "--redmine-token",
         help="private token for redmine API access",
+        show_default=False,
     ),
     imap_host: Optional[str] = typer.Option(
         config_defaults.get("imap_host"),
@@ -349,6 +353,7 @@ def main_command(
         config_defaults.get("imap_password"),
         "--imap-password",
         help="password for IMAP email server",
+        show_default=False,
     ),
 ) -> None:
     """

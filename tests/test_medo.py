@@ -12,10 +12,17 @@ import pytest
 from medo import medo  # SUT
 
 
-def test_help():
+def test_help(capsys):
     sys.argv[1:] = ["--help"]
     with pytest.raises(SystemExit):
         medo.main()
+    captured = capsys.readouterr()
+    for sensitive_opt in ["--github-token", "--gitlab-token", "--bugzilla-password", "--redmine-token", "--imap-password"]:
+        assert sensitive_opt in captured.out
+    click_cmd = medo.get_command(medo.app)
+    for param in click_cmd.params:
+        if any(secret in (param.name or "") for secret in ["token", "password"]):
+            assert getattr(param, "show_default", None) is False
 
 
 def test_default(mocker):
