@@ -83,20 +83,38 @@ def github_notifications(args: Any) -> List[str]:
 
 
 def gitlab_notifications(args: Any) -> List[str]:
-    def get(route: str, base: str = "api/v3/") -> Any:
-        return get_json("gitlab", urllib.parse.urljoin(args.gitlab_host, base + route), headers={"PRIVATE-TOKEN": args.gitlab_token}, verify=certifi.where())
-
     if not args.gitlab_host:
         log.debug("no gitlab_host configured, ignoring")
         return []
 
-    todos = get("todos")
+    headers = {"PRIVATE-TOKEN": args.gitlab_token} if args.gitlab_token else {}
+
+    def get(route: str, base: str = "api/v4/") -> Any:
+        url = urllib.parse.urljoin(args.gitlab_host.rstrip("/") + "/", base + route)
+        r = requests.get(url, headers=headers, verify=certifi.where())
+        if not r.ok and r.status_code == 404 and base == "api/v4/":
+            return get(route, base="api/v3/")
+        if not r.ok:
+            raise RuntimeError("gitlab access failed: %s" % r.reason)
+        return r.json()
+
+    def todo_str(t: Any) -> str:
+        if isinstance(t, str):
+            return t
+        url = t.get("target_url", "")
+        action = t.get("action_name", "")
+        target = t.get("target")
+        title = target.get("title", "") if isinstance(target, dict) else ""
+        summary = title or t.get("body", "")
+        return " ".join(part for part in [url, action, summary] if part)
+
+    todos_json = get("todos")
+    todos = [todo_str(t) for t in todos_json][: args.max_lines]
     gl = ["\n## gitlab %s" % args.gitlab_host] + todos
-    # TODO do not have any todos right now
 
     if args.gitlab_merge_requests1:
-        merge_requests_json = get("projects/%s/merge_requests" % urllib.parse.quote_plus(args.gitlab_merge_requests1) + "?state=opened")
-        merge_requests = ["%s %s @%s" % (i["web_url"], i["title"], i["author"]["name"]) for i in merge_requests_json]
+        merge_requests_json = get("projects/%s/merge_requests?state=opened" % urllib.parse.quote_plus(args.gitlab_merge_requests1))
+        merge_requests = ["%s %s @%s" % (i["web_url"], i["title"], i["author"]["name"]) for i in merge_requests_json][: args.max_lines]
         gl += ["\n### gitlab merge requests %s" % args.gitlab_merge_requests1] + merge_requests
     return gl
 

@@ -177,3 +177,75 @@ def test_parse_args_masks_sensitive_tokens(mocker):
     logged_msg = str(mock_log.call_args[0][0])
     assert "mysecrettoken" not in logged_msg
     assert "***" in logged_msg
+
+
+def test_gitlab_notifications_unconfigured():
+    args = medo.ArgsNamespace(gitlab_host=None)
+    assert medo.gitlab_notifications(args) == []
+
+
+def test_gitlab_notifications_v4_success(mocker):
+    args = medo.ArgsNamespace(
+        gitlab_host="https://gitlab.example.com",
+        gitlab_token="token123",
+        gitlab_merge_requests1="group/proj",
+        max_lines=5,
+    )
+
+    def mock_requests_get(url, **kwargs):
+        resp = mocker.MagicMock()
+        resp.ok = True
+        resp.status_code = 200
+        if "api/v4/todos" in url:
+            resp.json.return_value = [
+                {
+                    "target_url": "https://gitlab.example.com/group/proj/-/issues/1",
+                    "action_name": "assigned",
+                    "target": {"title": "Issue title"},
+                }
+            ]
+        elif "merge_requests" in url:
+            resp.json.return_value = [
+                {
+                    "web_url": "https://gitlab.example.com/group/proj/-/merge_requests/2",
+                    "title": "MR title",
+                    "author": {"name": "Author Name"},
+                }
+            ]
+        return resp
+
+    mocker.patch("requests.get", side_effect=mock_requests_get)
+    res = medo.gitlab_notifications(args)
+    assert any("https://gitlab.example.com/group/proj/-/issues/1 assigned Issue title" in line for line in res)
+    assert any("https://gitlab.example.com/group/proj/-/merge_requests/2 MR title @Author Name" in line for line in res)
+
+
+def test_gitlab_notifications_v4_fallback_to_v3(mocker):
+    args = medo.ArgsNamespace(
+        gitlab_host="https://gitlab.example.com",
+        gitlab_token="token123",
+        gitlab_merge_requests1=None,
+        max_lines=5,
+    )
+
+    def mock_requests_get(url, **kwargs):
+        resp = mocker.MagicMock()
+        if "api/v4/" in url:
+            resp.ok = False
+            resp.status_code = 404
+            resp.reason = "Not Found"
+        else:
+            resp.ok = True
+            resp.status_code = 200
+            resp.json.return_value = [
+                {
+                    "target_url": "https://gitlab.example.com/group/proj/-/issues/10",
+                    "action_name": "mentioned",
+                    "target": {"title": "Legacy Issue"},
+                }
+            ]
+        return resp
+
+    mocker.patch("requests.get", side_effect=mock_requests_get)
+    res = medo.gitlab_notifications(args)
+    assert any("Legacy Issue" in line for line in res)
