@@ -30,6 +30,27 @@ def test_default(mocker):
     m.ls()
 
 
+def test_get_json_error_handling(mocker):
+    mock_resp = mocker.MagicMock()
+    mock_resp.ok = False
+    mock_resp.reason = "Unauthorized"
+    mocker.patch("requests.get", return_value=mock_resp)
+    with pytest.raises(RuntimeError, match="github access failed: Unauthorized"):
+        medo.get_json("github", "https://api.github.com")
+
+
+def test_ls_handles_service_exception_gracefully(mocker, capsys):
+    args = medo.ArgsNamespace(timeout=1.0)
+    m = medo.MeDo(args)
+    m.dispatch = {
+        "failing": lambda _: (_ for _ in ()).throw(RuntimeError("Service down")),
+        "succeeding": lambda _: ["## service header", "item 1"],
+    }
+    m.ls()
+    captured = capsys.readouterr()
+    assert "## service header\nitem 1" in captured.out
+
+
 @pytest.mark.parametrize(
     "host,response,expected_len",
     [

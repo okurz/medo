@@ -50,7 +50,8 @@ log = logging.getLogger(sys.argv[0] if __name__ == "__main__" else __name__)
 def get_json(name: str, *args: Any, **kwargs: Any) -> Any:
     """Retrieve JSON from a (REST) API server after checking correct response."""
     r = requests.get(*args, **kwargs)
-    assert r.ok, "%s access failed: %s" % (name, r.reason)
+    if not r.ok:
+        raise RuntimeError("%s access failed: %s" % (name, r.reason))
     return r.json()
 
 
@@ -205,10 +206,15 @@ class MeDo:
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             futures = {executor.submit(v, self.args): k for k, v in self.dispatch.items()}
             try:
-                for future in concurrent.futures.as_completed(futures, timeout=int(self.args.timeout)):
-                    log.debug("result received for %s" % futures[future])
-                    out_single = future.result()
-                    print("\n".join(out_single))
+                for future in concurrent.futures.as_completed(futures, timeout=float(self.args.timeout)):
+                    source = futures[future]
+                    log.debug("result received for %s" % source)
+                    try:
+                        out_single = future.result()
+                        if out_single:
+                            print("\n".join(out_single))
+                    except Exception as e:
+                        log.error("%s failed: %s" % (source, e))
             except concurrent.futures.TimeoutError as e:
                 log.info("requests could not complete in time: %s" % e)
                 # Exiting hard with no cleanup as our access to different
