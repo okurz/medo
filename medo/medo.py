@@ -127,13 +127,19 @@ def bugzilla_notifications(args: Any) -> List[str]:
 
     def get(method: str, params: Any) -> Any:
         r_params = {"method": method, "params": json.dumps([params])}
-        return get_json("bugzilla", urllib.parse.urljoin(args.bugzilla_host, "jsonrpc.cgi"), auth=(args.bugzilla_user, args.bugzilla_password), params=r_params)
+        auth = (args.bugzilla_user, args.bugzilla_password) if (args.bugzilla_user and args.bugzilla_password) else None
+        return get_json("bugzilla", urllib.parse.urljoin(args.bugzilla_host, "jsonrpc.cgi"), auth=auth, params=r_params)
 
-    def bug_str(bz_id: Any, b: Any) -> str:
+    def bug_str(bz_id: str, b: Any) -> str:
         return " ".join([bz_id + str(b["id"]), b["product"], b["priority"], b["severity"], b["status"], b["summary"]])
 
     assigned = get("Bug.search", {"assigned_to": args.bugzilla_account, "resolution": ""})
-    assigned_str = [bug_str(assigned["id"], i) for i in assigned["result"]["bugs"]]
+    if not isinstance(assigned, dict) or assigned.get("error") or not assigned.get("result"):
+        if isinstance(assigned, dict) and assigned.get("error"):
+            log.warning("bugzilla error: %s", assigned["error"].get("message", assigned["error"]))
+        return []
+    bz_id = assigned["id"] if isinstance(assigned.get("id"), str) else args.bugzilla_host.rstrip("/") + "/"
+    assigned_str = [bug_str(bz_id, i) for i in assigned["result"]["bugs"]][: args.max_lines]
     # another idea was to look for user as requestee but it looks like this is not accessible over current API
     bz = ["\n## bugzilla %s" % args.bugzilla_host] + assigned_str
     return bz

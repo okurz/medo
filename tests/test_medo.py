@@ -28,3 +28,48 @@ def test_default(mocker):
     args.imap_host = None
     m = medo.MeDo(args)
     m.ls()
+
+
+@pytest.mark.parametrize(
+    "host,response,expected_len",
+    [
+        (None, None, 0),
+        ("https://bz.example.com", {"error": {"message": "Invalid password"}}, 0),
+        ("https://bz.example.com", {"result": None}, 0),
+        (
+            "https://bz.example.com",
+            {
+                "id": "https://bz.example.com/",
+                "result": {
+                    "bugs": [
+                        {"id": 1, "product": "P1", "priority": "P1", "severity": "S1", "status": "NEW", "summary": "Bug 1"},
+                        {"id": 2, "product": "P2", "priority": "P2", "severity": "S2", "status": "CONFIRMED", "summary": "Bug 2"},
+                    ]
+                },
+            },
+            2,
+        ),
+    ],
+    ids=[
+        "empty notifications when bugzilla host is unconfigured",
+        "gracefully handle bugzilla error response",
+        "gracefully handle bugzilla response with null result",
+        "format bugzilla notifications and limit by max_lines",
+    ],
+)
+def test_bugzilla_notifications(mocker, host, response, expected_len):
+    args = medo.ArgsNamespace(
+        bugzilla_host=host,
+        bugzilla_user="user",
+        bugzilla_password=None,
+        bugzilla_account="user@example.com",
+        max_lines=1,
+    )
+    if host:
+        mocker.patch("medo.medo.get_json", return_value=response)
+    res = medo.bugzilla_notifications(args)
+    if expected_len == 0:
+        assert res == []
+    else:
+        assert len(res) == expected_len
+        assert "https://bz.example.com/1 P1 P1 S1 NEW Bug 1" in res[1]
