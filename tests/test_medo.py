@@ -156,3 +156,17 @@ def test_redmine_notifications(mocker, host, expected_len):
     else:
         assert len(res) == expected_len
         assert "https://progress.example.com/issues/100 +Proj1 (High) Fix bug" in res[1]
+
+
+def test_github_notifications_unconfigured():
+    args = medo.ArgsNamespace(github_token=None)
+    assert medo.github_notifications(args) == []
+
+
+def test_parse_args_masks_sensitive_tokens(mocker):
+    sys.argv[1:] = ["ls", "--verbose", "4", "--github-token", "mysecrettoken"]
+    mock_log = mocker.patch("medo.medo.log.debug")
+    medo.parse_args()
+    logged_msg = str(mock_log.call_args[0][0])
+    assert "mysecrettoken" not in logged_msg
+    assert "***" in logged_msg

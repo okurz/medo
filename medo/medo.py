@@ -39,7 +39,7 @@ gitlab-merge-requests1 = <user>/<project>
 bugzilla-host = https://apibugzilla.example.com
 bugzilla-user = me
 bugzilla-password = my_password
-buzilla-account = me@example.com
+bugzilla-account = me@example.com
 """,
 }
 
@@ -64,7 +64,7 @@ def get_todo_txt(args: Any) -> List[str]:
 
 def github_notifications(args: Any) -> List[str]:
     if not args.github_token:
-        log.debug("not github_token configured, ignoring")
+        log.debug("no github_token configured, ignoring")
         return []
     github_auth = (args.github_username, args.github_token)
     r = get_json("github", "https://api.github.com/notifications", auth=github_auth, headers={"Accept": "application/vnd.github.v3+json"})
@@ -398,7 +398,8 @@ def parse_args() -> Any:
     }
     logging_level = logging.DEBUG if args.verbose > 4 else verbose_to_log.get(args.verbose, logging.DEBUG)
     log.setLevel(logging_level)
-    log.debug("args: %s" % args.__dict__)
+    safe_args = {k: ("***" if ("token" in k or "password" in k) and v else v) for k, v in args.__dict__.items()}
+    log.debug("args: %s" % safe_args)
     return args
 
 
