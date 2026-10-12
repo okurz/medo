@@ -154,13 +154,14 @@ def bugzilla_notifications(args: Any) -> List[str]:
     def bug_str(bz_id: str, b: Any) -> str:
         return " ".join([bz_id + str(b["id"]), b["product"], b["priority"], b["severity"], b["status"], b["summary"]])
 
-    assigned = get("Bug.search", {"assigned_to": args.bugzilla_account, "resolution": ""})
+    assigned = get("Bug.search", {"assigned_to": args.bugzilla_account, "resolution": "---"})
     if not isinstance(assigned, dict) or assigned.get("error") or not assigned.get("result"):
         if isinstance(assigned, dict) and assigned.get("error"):
             log.warning("bugzilla error: %s", assigned["error"].get("message", assigned["error"]))
         return []
     bz_id = assigned["id"] if isinstance(assigned.get("id"), str) else args.bugzilla_host.rstrip("/") + "/"
-    assigned_str = [bug_str(bz_id, i) for i in assigned["result"]["bugs"]][: args.max_lines]
+    open_bugs = [i for i in assigned["result"]["bugs"] if i.get("status") != "VERIFIED"]
+    assigned_str = [bug_str(bz_id, i) for i in open_bugs][: args.max_lines]
     # another idea was to look for user as requestee but it looks like this is not accessible over current API
     bz = ["\n## bugzilla %s" % args.bugzilla_host] + assigned_str
     return bz

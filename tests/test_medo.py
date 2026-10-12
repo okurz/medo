@@ -77,12 +77,26 @@ def test_ls_handles_service_exception_gracefully(mocker, capsys):
             },
             2,
         ),
+        (
+            "https://bz.example.com",
+            {
+                "id": "https://bz.example.com/",
+                "result": {
+                    "bugs": [
+                        {"id": 1, "product": "P1", "priority": "P1", "severity": "S1", "status": "VERIFIED", "summary": "Bug 1"},
+                        {"id": 2, "product": "P2", "priority": "P2", "severity": "S2", "status": "NEW", "summary": "Bug 2"},
+                    ]
+                },
+            },
+            2,
+        ),
     ],
     ids=[
         "empty notifications when bugzilla host is unconfigured",
         "gracefully handle bugzilla error response",
         "gracefully handle bugzilla response with null result",
         "format bugzilla notifications and limit by max_lines",
+        "exclude verified bugs from bugzilla notifications",
     ],
 )
 def test_bugzilla_notifications(mocker, host, response, expected_len):
@@ -93,14 +107,18 @@ def test_bugzilla_notifications(mocker, host, response, expected_len):
         bugzilla_account="user@example.com",
         max_lines=1,
     )
+    mock_get = None
     if host:
-        mocker.patch("medo.medo.get_json", return_value=response)
+        mock_get = mocker.patch("medo.medo.get_json", return_value=response)
     res = medo.bugzilla_notifications(args)
     if expected_len == 0:
         assert res == []
     else:
         assert len(res) == expected_len
-        assert "https://bz.example.com/1 P1 P1 S1 NEW Bug 1" in res[1]
+        assert "VERIFIED" not in "\n".join(res)
+        assert mock_get is not None
+        params_str = mock_get.call_args[1]["params"]["params"]
+        assert '"resolution": "---"' in params_str
 
 
 @pytest.mark.parametrize(
