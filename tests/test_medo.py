@@ -120,3 +120,39 @@ def test_obs_sections(mocker, osc_found, expected_headers):
         assert header in res
     if not osc_found:
         assert res == []
+
+
+@pytest.mark.parametrize(
+    "host,expected_len",
+    [
+        (None, 0),
+        ("https://progress.example.com", 2),
+    ],
+    ids=[
+        "empty notifications when redmine host is unconfigured",
+        "format redmine issues with valid url and limit by max_lines",
+    ],
+)
+def test_redmine_notifications(mocker, host, expected_len):
+    args = medo.ArgsNamespace(
+        redmine_host=host,
+        redmine_token="secret",
+        max_lines=1,
+    )
+    if host:
+        mocker.patch(
+            "medo.medo.get_json",
+            return_value={
+                "total_count": 2,
+                "issues": [
+                    {"id": 100, "project": {"name": "Proj1"}, "priority": {"name": "High"}, "subject": "Fix bug"},
+                    {"id": 101, "project": {"name": "Proj2"}, "priority": {"name": "Low"}, "subject": "Refactor"},
+                ],
+            },
+        )
+    res = medo.redmine_notifications(args)
+    if expected_len == 0:
+        assert res == []
+    else:
+        assert len(res) == expected_len
+        assert "https://progress.example.com/issues/100 +Proj1 (High) Fix bug" in res[1]

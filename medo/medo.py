@@ -106,14 +106,16 @@ def redmine_notifications(args: Any) -> List[str]:
         log.debug("no redmine_host configured, ignoring")
         return []
 
-    url = urllib.parse.urljoin(args.redmine_host, "issues.json?limit=20&assigned_to_id=me")
-    r = get_json("progress", url, auth=(args.redmine_token, ""))
+    base_url = args.redmine_host.rstrip("/") + "/"
+    url = urllib.parse.urljoin(base_url, f"issues.json?limit={args.max_lines}&assigned_to_id=me")
+    auth = (args.redmine_token, "") if args.redmine_token else None
+    r = get_json("progress", url, auth=auth)
 
     def ticket_str(i: Any) -> str:
-        return "%s +%s (%s) %s" % (args.redmine_host + str(i["id"]), i["project"]["name"], i["priority"]["name"], i["subject"])
+        return "%s +%s (%s) %s" % (f"{base_url}issues/{i['id']}", i["project"]["name"], i["priority"]["name"], i["subject"])
 
-    redmine_issues = [ticket_str(i) for i in r["issues"]]
-    rm = ["\n## %s (%s issues)" % (args.redmine_host, r["total_count"])] + redmine_issues
+    redmine_issues = [ticket_str(i) for i in r["issues"]][: args.max_lines]
+    rm = ["\n## %s (%s issues)" % (args.redmine_host, r.get("total_count", len(redmine_issues)))] + redmine_issues
     return rm
 
 
