@@ -261,6 +261,8 @@ class MeDo:
                         out_single = future.result()
                         if out_single:
                             print("\n".join(out_single))
+                    except BrokenPipeError:
+                        raise
                     except Exception as e:
                         log.error("%s failed: %s" % (source, e))
             except concurrent.futures.TimeoutError as e:
@@ -464,9 +466,14 @@ def parse_args() -> Any:
 
 
 def main() -> None:
-    args = parse_args()
-    medo = MeDo(args)
-    medo.ls()
+    try:
+        args = parse_args()
+        medo = MeDo(args)
+        medo.ls()
+    except BrokenPipeError:
+        devnull = os.open(os.devnull, os.O_WRONLY)
+        os.dup2(devnull, sys.stdout.fileno())
+        sys.exit(1)
 
 
 if __name__ == "__main__":
