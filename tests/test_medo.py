@@ -29,6 +29,7 @@ def test_default(mocker):
     sys.argv[1:] = ["-c", os.path.join(os.path.dirname(__file__), "medorc"), "ls"]
     args = medo.parse_args()
     mocker.patch("requests.get")
+    mocker.patch("medo.medo.run_process", return_value=b"")
     mocker.patch("subprocess.check_output")
     mocker.patch("subprocess.call")
     args.timeout = 1
@@ -137,7 +138,7 @@ def test_obs_sections(mocker, osc_found, expected_headers):
     mocker.patch("shutil.which", return_value="/usr/bin/osc" if osc_found else None)
     if osc_found:
         mocker.patch(
-            "subprocess.check_output",
+            "medo.medo.run_process",
             side_effect=[b"todo line 1\n", b"request line 1\n"],
         )
     res = medo.obs(args)
@@ -267,3 +268,15 @@ def test_gitlab_notifications_v4_fallback_to_v3(mocker):
     mocker.patch("requests.get", side_effect=mock_requests_get)
     res = medo.gitlab_notifications(args)
     assert any("Legacy Issue" in line for line in res)
+
+
+def test_run_process_success():
+    out = medo.run_process(["echo", "hello"])
+    assert out.strip() == b"hello"
+    assert len(medo.ACTIVE_PROCESSES) == 0
+
+
+def test_run_process_failure():
+    with pytest.raises(medo.subprocess.CalledProcessError):
+        medo.run_process(["false"])
+    assert len(medo.ACTIVE_PROCESSES) == 0

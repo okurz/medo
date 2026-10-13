@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import urllib.parse
@@ -19,6 +20,11 @@ import click
 import requests
 import typer
 from typer.main import get_command
+
+try:
+    signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+except (AttributeError, ValueError):
+    pass
 
 DEFAULTS = {
     "MAX_LINES": 20,
@@ -55,10 +61,26 @@ def get_json(name: str, *args: Any, **kwargs: Any) -> Any:
     return r.json()
 
 
+ACTIVE_PROCESSES: List[subprocess.Popen] = []
+
+
+def run_process(cmd: List[str], timeout: Optional[float] = None) -> bytes:
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    ACTIVE_PROCESSES.append(p)
+    try:
+        out, _ = p.communicate(timeout=timeout)
+        if p.returncode != 0:
+            raise subprocess.CalledProcessError(p.returncode, cmd, output=out)
+        return out
+    finally:
+        if p in ACTIVE_PROCESSES:
+            ACTIVE_PROCESSES.remove(p)
+
+
 def get_todo_txt(args: Any) -> List[str]:
     if not shutil.which("t"):
         return []
-    t_ls_out = subprocess.check_output(["t", "ls"]).splitlines()
+    t_ls_out = run_process(["t", "ls"]).splitlines()
     return ["\n## t (%s tasks)" % len(t_ls_out)] + [line.decode("utf-8") for line in t_ls_out][: args.max_lines]
 
 
@@ -173,10 +195,10 @@ def obs(args: Any) -> List[str]:
         log.debug("no osc found, ignoring")
         return []
     log.debug("querying OBS TODOs")
-    osc_my = subprocess.check_output(["osc", "my"])
+    osc_my = run_process(["osc", "my"])
     osc_out = [line.decode("utf-8") for line in osc_my.splitlines()][: args.max_lines]
     osc = ["\n## OBS TODOs"] + osc_out
-    osc_my_rq = subprocess.check_output(["osc", "my", "rq"])
+    osc_my_rq = run_process(["osc", "my", "rq"])
     osc_out_rq = [line.decode("utf-8") for line in osc_my_rq.splitlines()][: args.max_lines]
     osc += ["\n### OBS requests"] + osc_out_rq
     return osc
@@ -238,6 +260,15 @@ class MeDo:
                         log.error("%s failed: %s" % (source, e))
             except concurrent.futures.TimeoutError as e:
                 log.info("requests could not complete in time: %s" % e)
+                for p in list(ACTIVE_PROCESSES):
+                    try:
+                        p.kill()
+                    except Exception:
+                        pass
+                try:
+                    sys.stdout.flush()
+                except BrokenPipeError:
+                    pass
                 # Exiting hard with no cleanup as our access to different
                 # services should be read-only anyway. If we do no stop
                 # hard we might wait for a request which is not
