@@ -89,7 +89,12 @@ def github_notifications(args: Any) -> List[str]:
         log.debug("no github_token configured, ignoring")
         return []
     github_auth = (args.github_username, args.github_token)
-    r = get_json("github", "https://api.github.com/notifications", auth=github_auth, headers={"Accept": "application/vnd.github.v3+json"})
+    try:
+        r = get_json("github", "https://api.github.com/notifications", auth=github_auth, headers={"Accept": "application/vnd.github.v3+json"})
+    except RuntimeError as e:
+        if "Forbidden" in str(e):
+            raise RuntimeError(f"{e} (GitHub token requires 'notifications' scope, and 'repo' for private repositories)") from e
+        raise
     gh = r[: args.max_lines]
     gh_out = sorted(
         [

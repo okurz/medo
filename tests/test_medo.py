@@ -189,6 +189,20 @@ def test_github_notifications_unconfigured():
     assert medo.github_notifications(args) == []
 
 
+def test_github_notifications_forbidden_clarifies_scopes(mocker):
+    args = medo.ArgsNamespace(
+        github_token="newtoken",
+        github_username="user",
+        max_lines=5,
+    )
+    mock_resp = mocker.MagicMock()
+    mock_resp.ok = False
+    mock_resp.reason = "Forbidden"
+    mocker.patch("requests.get", return_value=mock_resp)
+    with pytest.raises(RuntimeError, match="GitHub token requires 'notifications' scope"):
+        medo.github_notifications(args)
+
+
 def test_parse_args_masks_sensitive_tokens(mocker):
     sys.argv[1:] = ["ls", "--verbose", "4", "--github-token", "mysecrettoken"]
     mock_log = mocker.patch("medo.medo.log.debug")
